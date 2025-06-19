@@ -1,0 +1,38 @@
+{
+  "name": "wallet-service",
+  "version": "1.0.0",
+  "description": "Wallet service for Trade-Lynk handling multiple cryptocurrencies",
+  "module": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --env-file=.env.local --watch src/index.ts",
+    "start": "bun run --env-file=.env.development src/index.ts",
+    "build": "bun build src/index.ts --outdir dist",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "bitcoinjs-lib": "^6.1.5",
+    "dotenv": "^16.4.5",
+    "hono": "^4.5.0",
+    "ioredis": "^5.6.1",
+    "jose": "^6.0.11",
+    "kafkajs": "^2.2.4",
+    "mongodb": "^6.5.0",
+    "mongoose": "^8.15.1",
+    "node-fetch": "^3.3.2",
+    "redis": "^4.6.13",
+    "tronweb": "^5.3.1",
+    "web3": "^4.5.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/bitcoinjs-lib": "^5.0.4",
+    "@types/node": "^20.11.25",
+    "bun-types": "latest",
+    "dotenv-cli": "^8.0.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
