@@ -1,12 +1,14 @@
 import { Context } from 'hono';
-import { PairService, PostService, OrderService } from '@/services/index';
+import { PairService, PostService, OrderService, WalletService, ChatService } from '@/services/index';
 import { ValidationController } from '@/controllers/index'
 
 const validateCtrl = new ValidationController()
 
+const walletService = new WalletService()
 const pairService = new PairService();
 const postService = new PostService();
 const orderService = new OrderService();
+const chatService = new ChatService();
 export class OrderController {
 
 
@@ -27,52 +29,84 @@ export class OrderController {
     }
   }
 
+  getOrderById = async (c: Context) => {
+    try {
+      const { id } = c.req.param();
+      const resp = await orderService.getSingleOrdder({ _id: id }, {}, "postId");
+      return c.json(resp, resp?.code ?? 500);
+    } catch (error) {
+      return c.json({ success: false, message: "INTERNAL_SERVER_ERROR" }, 500);
+    }
+  }
+
   async addOrder(c: Context) {
     try {
       const { userCode, userId } = await c.get('user')
-
-      const { postId, postCode, buyerCode, buyerId, sellerId, sellerCode, firstCoinId, firstCoin,
-        secondCoinId, secondCoin, payValue, receiveValue, price, side
-      } = await c.req.json();
+      const { adId, quantity } = await c.req.json();
 
       const validationPayload = [
-        { field: "postId", type: "string", value: postId },
-        { field: "postCode", type: "string", value: postCode },
-        { field: "buyerCode", type: "string", value: buyerCode },
-        { field: "buyerId", type: "string", value: buyerId },
-        { field: "sellerId", type: "string", value: sellerId },
-        { field: "sellerCode", type: "string", value: sellerCode },
-        { field: "firstCoinId", type: "string", value: firstCoinId },
-        { field: "firstCoin", type: "string", value: firstCoin },
-        { field: "secondCoinId", type: "string", value: secondCoinId },
-        { field: "secondCoin", type: "string", value: secondCoin },
-        { field: "payValue", type: "number", value: payValue },
-        { field: "receiveValue", type: "number", value: receiveValue },
-        { field: "price", type: "number", value: price },
-        { field: "side", type: "number", value: side },
+        { field: "adId", type: "objectId", value: adId },
+        { field: "quantity", type: "number", value: quantity },
       ];
       const { errors } = await validateCtrl.validate(validationPayload);
       if (Object.keys(errors).length > 0)
         return c.json({ success: false, errors, message: "VALIDATION_ERROR" }, 400);
+
+      // get add details
+      const addRep = await postService.getSinglePost({ _id: adId, status: { $in: [0, 1, 4] } });
+      if (!addRep?.success) return c.json(addRep, addRep?.code ?? 500);
+
+      const { _id, postCode, pairId, userCode: ownerCode, userId: ownerId, firstCoinId, firstCoin,
+        secondCoinId, secondCoin, payValue, receiveValue, price, side, tikerRoot, reminingQuantity,
+        minLimit, maxLimit
+      } = addRep?.data;
+
+      if (reminingQuantity < quantity) return c.json({ success: false, message: "QUANTITY_EXCEEDED" }, 400)
+
+      //if sell order then reduce balance
+      if (side == 1) {
+        const balanceResp = await walletService.debitAmount(userCode, "p2p", firstCoinId, quantity);
+        if (!balanceResp?.success) return c.json(balanceResp, balanceResp?.code ?? 500);
+      }
+
       let newDoc = {
-        postId,
-        postCode,
-        buyerCode,
-        buyerId,
-        sellerId,
-        sellerCode,
+        postId: _id,
+        postCode: postCode ?? Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15),
+        orderCode: Math.random().toString(36).substr(2, 9),
+        buyerCode: side == 1 ? ownerCode : userCode,
+        buyerId: side == 1 ? ownerId : userId,
+        sellerId: side == 1 ? ownerId : ownerId,
+        sellerCode: side == 1 ? ownerCode : ownerCode,
         firstCoinId,
         firstCoin,
         secondCoinId,
         secondCoin,
-        payValue,
-        receiveValue,
+        payValue: price,
+        receiveValue: quantity,
         price,
         side,
         userCode,
-        userId
+        userId,
+        tikerRoot,
+        startTime: Date.now(),
+        endTime: Date.now() + (5 * 60 * 1000),
       }
       const resp = await orderService.addOrder(newDoc);
+      if (!resp?.success) return c.json(resp, resp?.code ?? 500);
+
+      // update ad quantity
+      const adResp = await postService.updatePost(adId,
+        {
+          status: 1,
+          $inc:
+            { lockedQuantity: quantity, reminingQuantity: -quantity, totalOrder: 1 },
+          $min: {
+            minLimit: reminingQuantity - quantity, // This will set minLimit to quantity if it's smaller
+            maxLimit: reminingQuantity - quantity,
+          },
+        });
+      if (!adResp?.success) return c.json(adResp, adResp?.code ?? 500);
+
       return c.json(resp, resp?.code ?? 500);
     } catch (error) {
       return c.json({ success: false, message: "INTERNAL_SERVER_ERROR" }, 500);
@@ -129,4 +163,72 @@ export class OrderController {
     }
   }
 
+
+  getOrderUserHis = async (c: Context) => {
+    try {
+      const { userCode, userId } = await c.get('user')
+      const { side, page, limit, crypto, fiat } = await c.req.query();
+
+      let filter: any = {}
+      if (side && side != "all") filter = { ...filter, side: side == 'buy' ? 2 : side == 'sell' ? 1 : 0 }
+      if (crypto) filter = { ...filter, firstCoinId: crypto }
+      if (fiat) filter = { ...filter, secondCoinId: fiat }
+      if (userId) {
+        filter.$or = [
+          { sellerId: userId },
+          { buyerId: userId }
+        ];
+      }
+
+      let options = { skip: Number(page ?? 0) * Number(limit ?? 0), limit: Number(limit ?? 20) }
+      const resp = await orderService.getOrder(filter, options);
+      return c.json(resp, resp?.code ?? 500);
+    } catch (error) {
+      return c.json({ success: false, message: "INTERNAL_SERVER_ERROR" }, 500);
+    }
+  }
+
+
+  //message
+  getMessages = async (c: Context) => {
+    try {
+      const { id } = await c.req.param()
+      const { page, limit } = await c.req.query();
+      const OrderResp = await orderService.getSingleOrdder({ _id: id });
+      if (!OrderResp?.success) return c.json(OrderResp, OrderResp?.code ?? 500);
+      // if ([2, 5, 6].includes(OrderResp?.data?.status)) return c.json({ success: false, message: "ORDER_ALREADY_COMPLETED" }, 400);
+      let options = { skip: Number(page ?? 0) * Number(limit ?? 0), limit: Number(limit ?? 20), sort: { _id: 1 } }
+      const resp = await chatService.getMessage({ orderId: id }, options);
+      return c.json(resp, resp?.code ?? 500);
+    } catch (error) {
+      return c.json({ success: false, message: "INTERNAL_SERVER_ERROR" }, 500);
+    }
+  }
+  addMessage = async (c: Context) => {
+    try {
+      const { userCode, userId } = await c.get("user")
+      const { id } = await c.req.param()
+      const OrderResp = await orderService.getSingleOrdder({ _id: id });
+      if (!OrderResp?.success) return c.json(OrderResp, OrderResp?.code ?? 500);
+      if ([2, 5, 6].includes(OrderResp?.data?.status)) return c.json({ success: false, message: "ORDER_ALREADY_COMPLETED" }, 400);
+      const formData = await c.req.formData();
+      const message = formData.get('message');      // type: FormDataEntryValue | null
+      const attachment = formData.get('attachment'); // type: FormDataEntryValue | null
+
+      let newMessage = {
+        orderCode: OrderResp?.data?.orderCode,
+        orderId: id,
+        postCode: OrderResp?.data?.postCode,
+        postId: OrderResp?.data?.postId,
+        userCode: userCode,
+        userId: userId,
+        message: message,
+        attachment: attachment instanceof File ? attachment.name : attachment,
+      }
+      const resp = await chatService.setMessage(newMessage);
+      return c.json(resp, resp?.code ?? 500);
+    } catch (error) {
+      return c.json({ success: false, message: "INTERNAL_SERVER_ERROR" }, 500);
+    }
+  }
 } 

@@ -5,7 +5,6 @@ import { prettyJSON } from 'hono/pretty-json';
 import { config } from './config';
 import { p2pRoutes } from './routes/index';
 
-
 import { ApiError } from './utils/error';
 
 import { connect } from "./config/database";
@@ -78,6 +77,7 @@ const init = async () => {
     // Health check
     app.get('/health', (c) => c.json({ status: 'ok' }));
 
+    await import(`@/config/cron.ts`);
 
     // not found handler
     app.notFound((c) => {

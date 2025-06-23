@@ -117,14 +117,17 @@ export abstract class BaseRepository<T extends Document> {
       skip?: number;
       limit?: number;
       projection?: Record<string, 0 | 1 | boolean>;
+      sort: Record<string, 0 | 1 | boolean>;
     } = {}
   ): Promise<T[]> {
     try {
       let count = await this.model.countDocuments(filter).exec();
       if (count == 0) return { count, data: [] }
-      const { skip, limit, projection } = options;
+      const { skip, limit, projection, sort = { _id: -1 } } = options;
       let data = await this.model
         .find(filter, projection)
+        .sort(sort)
+        .lean()
         .skip(skip || 0)
         .limit(limit || 50)
         .exec();

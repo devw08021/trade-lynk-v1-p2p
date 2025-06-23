@@ -27,7 +27,7 @@ export class WalletService {
         return {
           success: false,
           message: "WALLET_NOT_FOUND",
-          code: 404,
+          code: 400,
           data: ""
         }
       }
@@ -50,7 +50,7 @@ export class WalletService {
         return {
           success: false,
           message: "INSUFFICIENT_BALANCE",
-          code: 404,
+          code: 400,
           data: ""
         }
       }

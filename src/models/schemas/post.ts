@@ -17,13 +17,15 @@ export interface PostDocument extends Document {
   minLimit: number;
   maxLimit: number;
   side: number;  //1 buy ,2 sell
-  postId: number;
+  postCode: string;
   expireAt: Date;
   payBy: string[];
   description: string;
-  status: number;  //  0 open , 1 pending,2.completed,3.cancelled,4.dispute
+  status: number;  //  0 open , 1 pending,2.completed,3.cancelled,4.dispute,5 time out
   createdAt: Date;
   updatedAt: Date;
+  totalOrder: number;
+  isTimeOut: boolean;
 }
 
 const PostSchema = new Schema<PostDocument>({
@@ -43,12 +45,13 @@ const PostSchema = new Schema<PostDocument>({
   minLimit: { type: Number, required: true },
   maxLimit: { type: Number, required: true },
   side: { type: Number, required: true },
-  postId: { type: Number, required: true, index: true },
+  postCode: { type: String, required: true },
   expireAt: { type: Date, required: true },
   payBy: { type: [], required: true },
   description: { type: String, required: true },
-  status: { type: Number, required: true }
-
+  status: { type: Number, required: true },
+  totalOrder: { type: Number, default: 0 },
+  isTimeOut: { type: Boolean, default: false },
 }, {
   timestamps: true
 });

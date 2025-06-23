@@ -1,6 +1,6 @@
 import { getRepository } from "@/models/repositoryFactory";
 import { PairModel, PostModel, OrderModel } from "@/models/schemas";
-
+import { WalletService } from "./wallet.service";
 
 interface APIResponse {
   success: boolean;
@@ -8,13 +8,14 @@ interface APIResponse {
   code: number;
   data: any;
 }
+const walletService = new WalletService();
 
 export class PostService {
 
   private pairtRep = getRepository(PairModel);
   private postRep = getRepository(PostModel);
   private orderRep = getRepository(OrderModel);
-
+  private isRunningCancelPosts = false
   // use filters to get filter record
   private createErrorResponse(message: string, code: number = 500): APIResponse {
     return { success: false, message, code, data: "" };
@@ -25,9 +26,9 @@ export class PostService {
   }
 
   // use filters to get filter record
-  async getPost(filter = {}): Promise<any> {
+  async getPost(filter = {}, options = {}): Promise<any> {
     try {
-      const pairDoc = await this.postRep.find(filter);
+      const pairDoc = await this.postRep.find(filter, options);
       if (!pairDoc)
         return this.createErrorResponse("NOT_FOUND", 400);
       return this.createSuccessResponse(pairDoc);
@@ -41,6 +42,12 @@ export class PostService {
   async addPost(updateData: any): Promise<any> {
     try {
 
+      if (updateData?.side == 2) {
+        let dectectBal = await walletService.debitAmount(updateData.userCode, "p2p", updateData.firstCoinId, updateData.quantity);
+        if (!dectectBal?.success) {
+          return this.createErrorResponse("NOT_ENOUGH_BALANCE", 400);
+        }
+      }
 
       const newOrder = new PostModel({
         userId: updateData.userId,
@@ -61,11 +68,12 @@ export class PostService {
         status: 0,
         side: updateData.side,
         orderSide: updateData.orderSide,
-        postId: updateData.postId,
-        expireAt: updateData.expireAt,
+        postCode: updateData.postCode,
+        expireAt: updateData.expireAt ?? new Date().getTime() + 1000 * 60 * 60 * 24,
         payBy: ["bank", "card", "usdt", "btc"],
         description: updateData.description,
       })
+      console.log("🚀 ~ PostService ~ addPost ~ newOrder:", newOrder)
 
       const pairDoc = await this.postRep.create(newOrder);
       if (!pairDoc)
@@ -86,6 +94,69 @@ export class PostService {
       console.error(error, "updatePost");
       return this.createErrorResponse("INTERNAL_SERVER_ERROR", 500);
 
+    }
+  }
+
+  async getSinglePost(filter = {}): Promise<any> {
+    try {
+      const pairDoc = await this.postRep.findOne(filter);
+      if (!pairDoc)
+        return this.createErrorResponse("NOT_FOUND", 400);
+      return this.createSuccessResponse(pairDoc);
+    } catch (error) {
+      console.error(error, "getPairs");
+      return this.createErrorResponse("INTERNAL_SERVER_ERROR", 500);
+    }
+  }
+
+
+  // order cron
+  async timeOutOpenPost(): Promise<any> {
+    if (this.isRunningCancelPosts) {
+      return;
+    }
+
+    this.isRunningCancelPosts = true;
+    try {
+      let totalProcessed = 0;
+      const limit = 2;
+      let skip = 0;
+
+      while (true) {
+        const { success, data } = await this.getPost(
+          { status: { $in: [0, 1] }, expireAt: { $lte: new Date() }, isTimeOut: false },
+          { skip, limit }
+        );
+
+        if (!success || !data || data.length === 0) break;
+
+        for (const post of data?.data) {
+          const { userCode, firstCoinId, quantity } = post;
+
+          await this.updatePost(post._id,
+            {
+              isTimeOut: true,
+              status: 5
+            });
+
+          if (post.side === 2) {
+            await walletService.creditAmount(userCode, "p2p", firstCoinId, quantity);
+          }
+
+          totalProcessed++;
+        }
+
+        skip += data.length;
+
+        if (data.length < limit) break; // no more records
+      }
+
+      return { success: true, totalProcessed };
+    } catch (err) {
+      console.error("🚀 ~ cancelOpenOrder ~ Error:", err);
+      return this.createErrorResponse("INTERNAL_SERVER_ERROR", 500);
+    } finally {
+      this.isRunningCancelPosts = false; // release lock
     }
   }
 

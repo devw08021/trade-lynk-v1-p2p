@@ -38,6 +38,18 @@ export class PairService {
 
   }
 
+   async getSinglePair(filter = {}): Promise<any> {
+    try {
+      const pairDoc = await this.pairtRep.findOne(filter);
+      if (!pairDoc)
+        return this.createErrorResponse("NOT_FOUND", 400);
+      return this.createSuccessResponse(pairDoc);
+    } catch (error) {
+      console.error(error, "getPairs");
+      return this.createErrorResponse("INTERNAL_SERVER_ERROR", 500);
+    }
+  }
+
   async addPair(updateData: any): Promise<any> {
     try {
       const pairDoc = await this.pairtRep.create(updateData);
