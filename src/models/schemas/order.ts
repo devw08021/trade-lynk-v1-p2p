@@ -7,7 +7,7 @@ export interface OrderDocument extends Document {
   buyerCode: number;
   buyerId: ObjectId;
   sellerId: ObjectId;
-  sellerCode: string;
+  sellerCode: number;
   firstCoinId: ObjectId;
   firstCoin: string;
   secondCoinId: ObjectId;
@@ -17,7 +17,7 @@ export interface OrderDocument extends Document {
   price: string;
   startTime: Date;
   endTime: Date;
-  side: number; //  0 buy , 2 sell
+  side: number; //  0 buy , 1 sell
   status: number; // 0 open, 1 paid, 2 completed , 3 cancelled, 4 dispute, 5 dispute resolved, 6 time out
   disputeRaisedAt: Date;
   disputeResolvedAt: Date;
@@ -36,7 +36,7 @@ const OrderSchema = new Schema<OrderDocument>(
     buyerCode: { type: Number, required: true },
     buyerId: { type: Schema.Types.ObjectId, ref: "user", required: true },
     sellerId: { type: Schema.Types.ObjectId, ref: "user", required: true },
-    sellerCode: { type: String, required: true },
+    sellerCode: { type: Number, required: true },
     firstCoinId: { type: Schema.Types.ObjectId, ref: "coin", required: true },
     firstCoin: { type: String, required: true },
     secondCoinId: { type: Schema.Types.ObjectId, ref: "coin", required: true },

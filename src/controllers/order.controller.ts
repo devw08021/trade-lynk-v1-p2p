@@ -94,7 +94,7 @@ export class OrderController {
         return c.json({ success: false, message: "QUANTITY_EXCEEDED" }, 400);
 
       //if sell order then reduce balance
-      if (side == 1) {
+      if (side == 0) {
         const balanceResp = await walletService.debitAmount(
           userCode,
           "p2p",
@@ -110,12 +110,12 @@ export class OrderController {
         postCode:
           postCode ??
           Math.random().toString(36).substring(2, 15) +
-            Math.random().toString(36).substring(2, 15),
+          Math.random().toString(36).substring(2, 15),
         orderCode: Math.random().toString(36).substr(2, 9),
-        buyerCode: side == 1 ? ownerCode : userCode,
-        buyerId: side == 1 ? ownerId : userId,
-        sellerId: side == 1 ? ownerId : ownerId,
-        sellerCode: side == 1 ? ownerCode : ownerCode,
+        buyerCode: side == 0 ? ownerCode : userCode,
+        buyerId: side == 0 ? ownerId : userId,
+        sellerId: side == 0 ? ownerId : ownerId,
+        sellerCode: side == 0 ? ownerCode : ownerCode,
         firstCoinId,
         firstCoin,
         secondCoinId,
@@ -228,7 +228,7 @@ export class OrderController {
       if (side && side != "all")
         filter = {
           ...filter,
-          side: side == "buy" ? 2 : side == "sell" ? 1 : 0,
+          side: side == "buy" ? 0 : side == "sell" ? 1 : 0,
         };
       if (crypto) filter = { ...filter, firstCoinId: crypto };
       if (fiat) filter = { ...filter, secondCoinId: fiat };
@@ -311,7 +311,7 @@ export class OrderController {
         );
       // for paid status must be open 0
       if (OrderResp?.data?.status != 0)
-        return c.json({ success: false, message: "ORDER_STATUS_INVALID" });
+        return c.json({ success: false, message: "ORDER_STATUS_INVALID" }, 400);
       const resp = await orderService.updateOrder(id, { status: 1 });
       if (!resp?.success) return c.json(OrderResp, OrderResp?.code ?? 500);
 
@@ -321,7 +321,7 @@ export class OrderController {
     }
   };
 
-  OrderComplete = async (c: Context) => {
+  orderComplete = async (c: Context) => {
     try {
       const { id } = await c.req.param();
       const OrderResp = await orderService.getSingleOrdder({ _id: id });
@@ -333,13 +333,17 @@ export class OrderController {
         );
       // for paid status must be open 0
       if (OrderResp?.data?.status != 1)
-        return c.json({ success: false, message: "ORDER_STATUS_INVALID" });
+        return c.json({ success: false, message: "ORDER_STATUS_INVALID" }, 400);
 
-      // update balance to seller
-
-      if(OrderResp?.data?.side == 1){
-
-      }
+      // means update balance to buyer
+      const balanceResp = await walletService.creditAmount(
+        OrderResp?.data?.buyerCode,
+        "p2p",
+        OrderResp?.data?.firstCoinId,
+        OrderResp?.data?.receiveValue
+      );
+      if (!balanceResp?.success)
+        return c.json(balanceResp, balanceResp?.code ?? 500);
 
       const resp = await orderService.updateOrder(id, { status: 2 });
       if (!resp?.success) return c.json(OrderResp, OrderResp?.code ?? 500);
@@ -348,7 +352,7 @@ export class OrderController {
       const adResp = await postService.updatePost(OrderResp?.data?.postId, {
         status: 1,
         $inc: {
-          lockedQuantity: OrderResp?.data?.receiveValue,
+          lockedQuantity: -OrderResp?.data?.receiveValue,
         },
       });
 
@@ -371,7 +375,7 @@ export class OrderController {
         );
       // for paid status must be open 0
       if (OrderResp?.data?.status != 1)
-        return c.json({ success: false, message: "ORDER_STATUS_INVALID" });
+        return c.json({ success: false, message: "ORDER_STATUS_INVALID" }, 400);
       const resp = await orderService.updateOrder(id, {
         status: 4,
         disputeRaisedBy: OrderResp?.data?.buyerCode == userCode ? 0 : 1,
@@ -397,10 +401,29 @@ export class OrderController {
         );
       // for paid status must be open 0
       if (OrderResp?.data?.status != 0)
-        return c.json({ success: false, message: "ORDER_STATUS_INVALID" });
+        return c.json({ success: false, message: "ORDER_STATUS_INVALID" }, 400);
       const resp = await orderService.updateOrder(id, { status: 3 });
       if (!resp?.success) return c.json(OrderResp, OrderResp?.code ?? 500);
 
+      //  update balance to buyer
+      const balanceResp = await walletService.creditAmount(
+        OrderResp?.data?.buyerCode,
+        "p2p",
+        OrderResp?.data?.firstCoinId,
+        OrderResp?.data?.receiveValue
+      );
+      if (!balanceResp?.success)
+        return c.json(balanceResp, balanceResp?.code ?? 500);
+
+      // update ad quantity
+      const adResp = await postService.updatePost(OrderResp?.data?.postId, {
+        status: 1,
+        $inc: {
+          lockedQuantity: -resp?.data?.receiveValue,
+          reminingQuantity: resp?.data?.receiveValue,
+          totalOrder: 1,
+        },
+      });
       return c.json(resp, resp?.code ?? 500);
     } catch (error) {
       return c.json({ success: false, message: "INTERNAL_SERVER_ERROR" }, 500);
@@ -419,7 +442,7 @@ export class OrderController {
         );
       // for paid status must be open 0
       if (OrderResp?.data?.status != 4)
-        return c.json({ success: false, message: "ORDER_STATUS_INVALID" });
+        return c.json({ success: false, message: "ORDER_STATUS_INVALID" }, 400);
 
       const {
         _id: orderId,
@@ -434,14 +457,38 @@ export class OrderController {
         receiveValue,
       } = OrderResp?.data;
 
-      // for buy post
-      if (side == 1) {
-        //update balance to post creator
+      // if post is sell means update post to buyer
+      const balanceResp = await walletService.creditAmount(
+        OrderResp?.data?.buyerCode,
+        "p2p",
+        OrderResp?.data?.firstCoinId,
+        OrderResp?.data?.receiveValue
+      );
+      if (!balanceResp?.success)
+        return c.json(balanceResp, balanceResp?.code ?? 500);
+
+      const updatePayload: any = {
+        $inc: {
+          lockedQuantity: -OrderResp?.data?.receiveValue,
+        },
+      };
+
+      //  Add remaining quantity only for side == 1
+      if (OrderResp?.data?.side === 0) {
+        updatePayload.$inc.reminingQuantity = OrderResp?.data?.receiveValue;
+      }
+
+      //  Set status only if condition is met
+      if (
+        OrderResp?.data?.postId?.reminingQuantity <= 0 &&
+        OrderResp?.data?.side === 0
+      ) {
+        updatePayload.$set = { status: 2 };
       }
 
       const resp = await orderService.updateOrder(id, {
         status: 5,
-        disputeTo: 1,
+        disputeTo: 0,
         disputeResolvedAt: new Date(),
       });
       if (!resp?.success) return c.json(OrderResp, OrderResp?.code ?? 500);
@@ -455,7 +502,7 @@ export class OrderController {
   orderDisputeResolvedSeller = async (c: Context) => {
     try {
       const { id } = await c.req.param();
-      const OrderResp = await orderService.getSingleOrdder({ _id: id });
+      const OrderResp = await orderService.getSingleOrdder({ _id: id }, {}, "postId");
       if (!OrderResp?.success) return c.json(OrderResp, OrderResp?.code ?? 500);
       if ([2, 3, 5, 6].includes(OrderResp?.data?.status))
         return c.json(
@@ -464,7 +511,39 @@ export class OrderController {
         );
       // for paid status must be open 0
       if (OrderResp?.data?.status != 4)
-        return c.json({ success: false, message: "ORDER_STATUS_INVALID" });
+        return c.json({ success: false, message: "ORDER_STATUS_INVALID" }, 400);
+
+      // if post is sell means update post to buyer
+      if (OrderResp?.data?.side == 0) {
+        const balanceResp = await walletService.creditAmount(
+          OrderResp?.data?.sellerCode,
+          "p2p",
+          OrderResp?.data?.firstCoinId,
+          OrderResp?.data?.receiveValue
+        );
+        if (!balanceResp?.success)
+          return c.json(balanceResp, balanceResp?.code ?? 500);
+      }
+
+
+      const updatePayload: any = {
+        $inc: {
+          lockedQuantity: -OrderResp?.data?.receiveValue,
+        },
+      };
+
+      //  Add remaining quantity only for side == 1
+      if (OrderResp?.data?.side === 1) {
+        updatePayload.$inc.reminingQuantity = OrderResp?.data?.receiveValue;
+      }
+
+      //  Set status only if condition is met
+      if (
+        OrderResp?.data?.postId?.reminingQuantity <= 0 &&
+        OrderResp?.data?.side === 1
+      ) {
+        updatePayload.$set = { status: 2 };
+      }
 
       const resp = await orderService.updateOrder(id, {
         status: 5,

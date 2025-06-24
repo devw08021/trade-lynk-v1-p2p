@@ -1,5 +1,5 @@
 import { Context } from 'hono';
-import { PairService, PostService, OrderService } from '@/services/index';
+import { PairService, PostService, OrderService, WalletService } from '@/services/index';
 import { ValidationController } from '@/controllers/index'
 
 const validateCtrl = new ValidationController()
@@ -7,6 +7,8 @@ const validateCtrl = new ValidationController()
 const pairService = new PairService();
 const postService = new PostService();
 const orderService = new OrderService();
+const walletService = new WalletService();
+
 export class PostController {
 
 
@@ -34,7 +36,8 @@ export class PostController {
 
       let filter: any = {
         status: { $in: [0, 1] },
-        isTimeOut: false
+        isTimeOut: false,
+        reminingQuantity: { $gt: 0 },
       }
       if (type) filter = { ...filter, side: type == 'buy' ? 1 : type == 'sell' ? 0 : 0 }
       if (crypto) filter = { ...filter, firstCoin: crypto }
@@ -73,6 +76,16 @@ export class PostController {
       const pair = await pairService.getSinglePair({ _id: pairId, status: 1 });
       if (!pair?.success) return c.json({ success: false, message: "PAIR_NOT_FOUND" }, 400);
 
+      if (side == 'sell') {
+        const balanceResp = await walletService.debitAmount(
+          userCode,
+          "p2p",
+          pair?.data?.firstCoinId,
+          quantity
+        );
+        if (!balanceResp?.success)
+          return c.json(balanceResp, balanceResp?.code ?? 500); I
+      }
       let newDoc = {
         pairId: pair?.data?._id,
         tikerRoot: pair?.data?.tikerRoot,
@@ -138,9 +151,9 @@ export class PostController {
       const { side, page, limit, crypto, fiat } = await c.req.query();
 
       let filter: any = {}
-      if (side && side != "all") filter = { ...filter, side: side == 'buy' ? 1 : side == 'sell' ? 2 : 0 }
+      if (side && side != "all") filter = { ...filter, side: side == 'buy' ? 0 : side == 'sell' ? 1 : 0 }
       if (crypto) filter = { ...filter, firstCoinId: crypto }
-      if (fiat) filter = { ...filter, secondCoinId  : fiat }
+      if (fiat) filter = { ...filter, secondCoinId: fiat }
       if (userId) filter = { ...filter, userId: userId }
 
       let options = { skip: Number(page ?? 0) * Number(limit ?? 0), limit: Number(limit ?? 20) }
