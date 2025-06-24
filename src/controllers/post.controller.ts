@@ -36,7 +36,7 @@ export class PostController {
         status: { $in: [0, 1] },
         isTimeOut: false
       }
-      if (type) filter = { ...filter, side: type == 'buy' ? 2 : type == 'sell' ? 1 : 0 }
+      if (type) filter = { ...filter, side: type == 'buy' ? 1 : type == 'sell' ? 0 : 0 }
       if (crypto) filter = { ...filter, firstCoin: crypto }
       if (fiat) filter = { ...filter, secondCoin: fiat }
       if (userId) filter = { ...filter, userId: { $ne: userId } }
@@ -85,7 +85,7 @@ export class PostController {
         quantity,
         minLimit,
         maxLimit,
-        side: side == 'buy' ? 1 : side == 'sell' ? 2 : 0,
+        side: side == 'buy' ? 0 : side == 'sell' ? 1 : 0,
         payBy,
         description,
         userCode,

@@ -21,7 +21,7 @@ P2PRoutes.post('/trade', authMiddleware, orderCtrl.addOrder)
 p2pRoutes.post('/trade/paid', authMiddleware, orderCtrl.orderPaid)
 P2PRoutes.post('/trade/complete', authMiddleware, orderCtrl.OrderComplete)
 P2PRoutes.post('trade/dispute', authMiddleware, orderCtrl.orderDispute)
-P2PRoutes.post('trade/calcel', authMiddleware, orderCtrl.orderCancel)
+P2PRoutes.post('trade/cancel', authMiddleware, orderCtrl.orderCancel)
 
 
 // user history
