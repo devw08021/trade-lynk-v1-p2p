@@ -18,7 +18,17 @@ const chatService = new ChatService();
 export class OrderController {
   getAllOrder = async (c: Context) => {
     try {
-      const resp = await orderService.getOrder({});
+      const { type, page, limit, crypto, fiat, userId } = await c.req.query();
+
+      let filter: any = {}
+
+      if (type) filter = { ...filter, side: type == 'buy' ? 1 : type == 'sell' ? 0 : 0 }
+      if (crypto) filter = { ...filter, firstCoin: crypto }
+      if (fiat) filter = { ...filter, secondCoin: fiat }
+      if (userId) filter = { ...filter, userId: { $ne: userId } }
+
+      let options = { skip: Number(page ?? 0) * Number(limit ?? 0), limit: Number(limit ?? 20) }
+      const resp = await orderService.getOrder(filter, options);
       return c.json(resp, resp?.code ?? 500);
     } catch (error) {
       return c.json({ success: false, message: "INTERNAL_SERVER_ERROR" }, 500);
@@ -27,6 +37,24 @@ export class OrderController {
   getActiveOrder = async (c: Context) => {
     try {
       const resp = await orderService.getOrder({ status: 0 });
+      return c.json(resp, resp?.code ?? 500);
+    } catch (error) {
+      return c.json({ success: false, message: "INTERNAL_SERVER_ERROR" }, 500);
+    }
+  };
+  getDisputeOrder = async (c: Context) => {
+    try {
+      const { type, page, limit, crypto, fiat, userId } = await c.req.query();
+
+      let filter: any = { status: { $in: [4, 5] } }
+
+      if (type) filter = { ...filter, side: type == 'buy' ? 1 : type == 'sell' ? 0 : 0 }
+      if (crypto) filter = { ...filter, firstCoin: crypto }
+      if (fiat) filter = { ...filter, secondCoin: fiat }
+      if (userId) filter = { ...filter, userId: { $ne: userId } }
+
+      let options = { skip: Number(page ?? 0) * Number(limit ?? 0), limit: Number(limit ?? 20) }
+      const resp = await orderService.getOrder(filter,options);
       return c.json(resp, resp?.code ?? 500);
     } catch (error) {
       return c.json({ success: false, message: "INTERNAL_SERVER_ERROR" }, 500);

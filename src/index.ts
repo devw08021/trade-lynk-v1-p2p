@@ -3,7 +3,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
 import { config } from './config';
-import { p2pRoutes } from './routes/index';
+import { userRoute, adminRoutes } from './routes/index';
 
 import { ApiError } from './utils/error';
 
@@ -72,7 +72,9 @@ const init = async () => {
     });
 
     // Routes
-    app.route('/api/v1/p2p', p2pRoutes);
+    app.route('/api/v1/p2p', userRoute);
+    app.route('/api/v1/admin', adminRoutes);
+
 
     // Health check
     app.get('/health', (c) => c.json({ status: 'ok' }));

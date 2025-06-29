@@ -1,5 +1,7 @@
-import p2pRoutes from "@/routes/p2p.routes"
+import userRoute from "@/routes/user.routes"
+import adminRoutes from "@/routes/admin.routes";
 
 export {
-    p2pRoutes
+    userRoute,
+    adminRoutes,
 };

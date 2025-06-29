@@ -25,7 +25,7 @@ export class PairService {
   }
 
   // use filters to get filter record
-  async getPairs(filter = {}): Promise<any> {
+  async getPairs(filter = {},options={}): Promise<any> {
     try {
       const pairDoc = await this.pairtRep.find(filter);
       if (!pairDoc)

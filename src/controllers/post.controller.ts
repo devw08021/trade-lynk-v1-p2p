@@ -14,7 +14,16 @@ export class PostController {
 
   getAllPost = async (c: Context) => {
     try {
-      const resp = await postService.getPost({});
+      const { type, page, limit, crypto, fiat, userId } = await c.req.query();
+
+      let filter: any = {}
+      if (type) filter = { ...filter, side: type == 'buy' ? 1 : type == 'sell' ? 0 : 0 }
+      if (crypto) filter = { ...filter, firstCoin: crypto }
+      if (fiat) filter = { ...filter, secondCoin: fiat }
+      if (userId) filter = { ...filter, userId: { $ne: userId } }
+
+      let options = { skip: Number(page ?? 0) * Number(limit ?? 0), limit: Number(limit ?? 20) }
+      const resp = await postService.getPost(filter, options);
       return c.json(resp, resp?.code ?? 500);
     } catch (error) {
       return c.json({ success: false, message: "INTERNAL_SERVER_ERROR" }, 500);
