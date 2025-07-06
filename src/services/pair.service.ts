@@ -25,7 +25,7 @@ export class PairService {
   }
 
   // use filters to get filter record
-  async getPairs(filter = {},options={}): Promise<any> {
+  async getPairs(filter = {}, options = {}): Promise<any> {
     try {
       const pairDoc = await this.pairtRep.find(filter);
       if (!pairDoc)
@@ -38,7 +38,18 @@ export class PairService {
 
   }
 
-   async getSinglePair(filter = {}): Promise<any> {
+  async getPairById(_id, projection = {}): Promise<any> {
+    try {
+      const pairDoc = await this.pairtRep.findById(_id, projection);
+      if (!pairDoc)
+        return this.createErrorResponse("NOT_FOUND", 400);
+      return this.createSuccessResponse(pairDoc);
+    } catch (error) {
+      console.error(error, "getPairs");
+      return this.createErrorResponse("INTERNAL_SERVER_ERROR", 500);
+    }
+  }
+  async getSinglePair(filter = {}): Promise<any> {
     try {
       const pairDoc = await this.pairtRep.findOne(filter);
       if (!pairDoc)

@@ -5,8 +5,8 @@ export interface PairDocument extends Document {
   firstCoin: string;
   secondCoinId: ObjectId;
   secondCoin: string;
-  price: string;
-  fee: string;
+  price: number;
+  fee: number;
   duration: number;
   status: number; //  1 active , 2 deActive
   tikerRoot: string;
@@ -21,8 +21,8 @@ const PairSchema = new Schema<PairDocument>(
     firstCoin: { type: String, required: true },
     secondCoinId: { type: Schema.Types.ObjectId, ref: "Coin", required: true },
     secondCoin: { type: String, required: true },
-    price: { type: String, required: true },
-    fee: { type: String, required: true },
+    price: { type: Number, required: true },
+    fee: { type: Number, required: true },
     duration: { type: Number, required: true },
     status: { type: Number, required: true },
   },

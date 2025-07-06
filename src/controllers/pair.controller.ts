@@ -6,12 +6,21 @@ const validateCtrl = new ValidationController()
 
 const pairService = new PairService();
 export class PairController {
-
+  async getPairById(c: Context) {
+    try {
+      const { id: pairId } = await c.req.param();
+      const resp = await pairService.getPairById(pairId);
+      return c.json(resp, resp?.code ?? 500);
+    } catch (error) {
+      console.error("🚀 ~ CurrencyController ~ getCurrencyById ~ error:", error)
+      return c.json({ success: false, message: "INTERNAL_SERVER_ERROR" }, 500);
+    }
+  }
 
   getAllPairs = async (c: Context) => {
     try {
       const { type, page, limit, crypto, fiat, userId } = await c.req.query();
-      let filter: any = {  }
+      let filter: any = {}
       if (type) filter = { ...filter, side: type == 'buy' ? 1 : type == 'sell' ? 0 : 0 }
       if (crypto) filter = { ...filter, firstCoin: crypto }
       if (fiat) filter = { ...filter, secondCoin: fiat }
@@ -38,14 +47,14 @@ export class PairController {
       const { firstCoinId, firstCoin, secondCoinId, secondCoin, price, fee, duration, status, tikerRoot } = await c.req.json();
 
       const validationPayload = [
-        { field: "firstCoinId", type: "string", value: firstCoinId },
+        { field: "firstCoinId", type: "objectId", value: firstCoinId },
         { field: "firstCoin", type: "string", value: firstCoin ?? "" },
-        { field: "secondCoinId", type: "string", value: secondCoinId ?? "" },
+        { field: "secondCoinId", type: "objectId", value: secondCoinId ?? "" },
         { field: "secondCoin", type: "string", value: secondCoin ?? "" },
-        { field: "price", type: "string", value: price ?? "" },
-        { field: "fee", type: "string", value: fee ?? "" },
-        { field: "duration", type: "string", value: duration ?? "" },
-        { field: "status", type: "string", value: status ?? "" },
+        { field: "price", type: "number", value: parseFloat(price) },
+        { field: "fee", type: "number", value: parseFloat(fee) ?? "" },
+        { field: "duration", type: "number", value: parseFloat(duration) ?? "" },
+        { field: "status", type: "number", value: parseFloat(status) },
         { field: "tikerRoot", type: "string", value: tikerRoot ?? "" },
       ];
       const { errors } = await validateCtrl.validate(validationPayload);
@@ -72,18 +81,19 @@ export class PairController {
 
   async updatePair(c: Context) {
     try {
-      const { _id, firstCoinId, firstCoin, secondCoinId, secondCoin, price, fee, duration, status, tikerRoot } = await c.req.json();
+      const { id: _id } = await c.req.param();
+      const { firstCoinId, firstCoin, secondCoinId, secondCoin, price, fee, duration, status, tikerRoot } = await c.req.json();
 
       const validationPayload = [
-        { field: "_id", type: "string", value: _id },
-        { field: "firstCoinId", type: "string", value: firstCoinId },
+        { field: "_id", type: "objectId", value: _id },
+        { field: "firstCoinId", type: "objectId", value: firstCoinId },
         { field: "firstCoin", type: "string", value: firstCoin ?? "" },
-        { field: "secondCoinId", type: "string", value: secondCoinId ?? "" },
+        { field: "secondCoinId", type: "objectId", value: secondCoinId ?? "" },
         { field: "secondCoin", type: "string", value: secondCoin ?? "" },
-        { field: "price", type: "string", value: price ?? "" },
-        { field: "fee", type: "string", value: fee ?? "" },
-        { field: "duration", type: "string", value: duration ?? "" },
-        { field: "status", type: "string", value: status ?? "" },
+        { field: "price", type: "number", value: parseFloat(price) },
+        { field: "fee", type: "number", value: parseFloat(fee) ?? "" },
+        { field: "duration", type: "number", value: parseFloat(duration) ?? "" },
+        { field: "status", type: "number", value: parseFloat(status) },
         { field: "tikerRoot", type: "string", value: tikerRoot ?? "" },
       ];
       const { errors } = await validateCtrl.validate(validationPayload);
